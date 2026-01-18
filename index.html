@@ -172,6 +172,208 @@
                 <button class="btn btn-primary" style="width:auto; padding:0 1.5rem; margin-bottom:0;" onclick="addCategory()">Add</button>
             </div>
 
+            <label style="display:block; margin-bottom:5px; font-size:0.9rem; color:#94a3b8;">Header & About</label>
+            <input type="text" id="editIntroTitle" placeholder="Title">
+            <input type="text" id="editIntroSub" placeholder="Subtitle" style="margin-top:10px;">
+            <button class="btn btn-outline" style="margin-bottom:1rem;" onclick="saveHeader()">Update Header</button>
+            <textarea id="aboutEditor" rows="3"></textarea>
+            <button class="btn btn-outline" onclick="saveAbout()">Save About Text</button>
+            
+            <button class="btn btn-danger" onclick="requestSecureAction('reset')">⚠ Reset All Data</button>
+        </div>
+    </div>
+
+    <div id="contentArea">
+        <h2 id="sectionTitle" style="font-size: 2rem; margin-bottom: 1.5rem; text-align:center;"></h2>
+        <div id="postGrid" class="grid"></div>
+    </div>
+
+    <div class="about-section">
+        <h3 style="color:white; margin-top:0;">About Us</h3>
+        <div id="aboutDisplay" class="about-text"></div>
+    </div>
+</div>
+
+<footer>&copy; 2026 CatVers Studio. All rights reserved.</footer>
+
+<div id="loginModal">
+    <div class="login-box">
+        <h3 style="margin-top:0; color:white; margin-bottom:1.5rem;" id="loginTitle">System Access</h3>
+        <p id="loginMsg" style="color:#ef4444; font-size:0.9rem; display:none; margin-bottom:1rem;">Confirm Identity</p>
+        <input type="email" id="adminEmail" placeholder="Email">
+        <input type="password" id="adminPass" placeholder="Password">
+        <button class="btn btn-primary" style="margin-bottom:10px;" onclick="handleAuth()">Confirm</button>
+        <button class="btn btn-outline" onclick="closeLogin()">Cancel</button>
+    </div>
+</div>
+
+<script>
+    // SECURITY & AUTH
+    document.addEventListener('keydown', e => { if((e.ctrlKey && (e.key==='I'||e.key==='u'||e.key==='s'||e.key==='p'))||e.key==='F12'){e.preventDefault(); if(e.key!=='s'&&e.key!=='p') triggerCorruption();} });
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    function triggerCorruption(){ document.body.innerHTML=""; document.body.classList.add('corrupted'); alert("SECURITY: SYSTEM LOCKED"); }
+
+    const ADMIN_EMAIL = "asiksingh.143@gmail.com";
+    
+    const logoBtn=document.getElementById('siteLogo'); let pressTimer;
+    let pendingAction = null; let pendingData = null;   
+
+    logoBtn.addEventListener('mousedown',()=>pressTimer=setTimeout(()=>{requestSecureAction('login')},5000));
+    logoBtn.addEventListener('mouseup',()=>clearTimeout(pressTimer)); logoBtn.addEventListener('mouseleave',()=>clearTimeout(pressTimer));
+    logoBtn.addEventListener('touchstart',()=>pressTimer=setTimeout(()=>{requestSecureAction('login')},5000));
+    logoBtn.addEventListener('touchend',()=>clearTimeout(pressTimer));
+
+    function requestSecureAction(action, data=null) {
+        pendingAction = action; pendingData = data;
+        document.getElementById('loginTitle').innerText = action === 'login' ? "Admin Login" : "Security Check";
+        document.getElementById('loginMsg').style.display = action === 'login' ? 'none' : 'block';
+        document.getElementById('loginModal').style.display = 'flex';
+    }
+
+    function handleAuth() {
+        const eInput = document.getElementById('adminEmail').value;
+        const pInput = document.getElementById('adminPass').value;
+
+        const now = new Date();
+        let hours = now.getHours();
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        hours = hours % 12; hours = hours ? hours : 12; 
+        
+        const validPass = `Catvers@${hours}:${minutes}`;
+
+        if(eInput === ADMIN_EMAIL && pInput === validPass) {
+            document.getElementById('loginModal').style.display = 'none';
+            document.getElementById('adminEmail').value = ''; 
+            document.getElementById('adminPass').value = '';
+            
+            if(pendingAction === 'login') toggleAdminUI(true);
+            else if(pendingAction === 'reset') performReset();
+            else if(pendingAction === 'delete') performDelete(pendingData);
+            else if(pendingAction === 'edit_publish') performPublish();
+            
+            pendingAction = null; pendingData = null;
+        } else {
+            alert("ACCESS DENIED");
+        }
+    }
+
+    function closeLogin(){ document.getElementById('loginModal').style.display='none'; pendingAction=null; }
+    function exitAdmin(){ toggleAdminUI(false); }
+
+    // DATA
+    const defaultCats=[{id:'c1',name:'Useful Tools'}];
+    let categories=JSON.parse(localStorage.getItem('portalCats'))||defaultCats;
+    let posts=JSON.parse(localStorage.getItem('portalPosts'))||[];
+    let aboutText=localStorage.getItem('portalAbout')||"Welcome to Infinity Tool.";
+    let introData=JSON.parse(localStorage.getItem('portalIntro'))||{title:"Welcome",sub:"Explore tools"};
+    let activeCatId=null;
+
+    if(categories.length > 0 && categories[0].name === "Illegal Sites") {
+        categories[0].name = "Useful Tools"; localStorage.setItem('portalCats', JSON.stringify(categories));
+    }
+
+    const save=()=>{ localStorage.setItem('portalCats',JSON.stringify(categories)); localStorage.setItem('portalPosts',JSON.stringify(posts)); localStorage.setItem('portalIntro',JSON.stringify(introData)); };
+
+    function toggleAdminUI(show){
+        const els = { panel:document.getElementById('adminPanel'), exit:document.getElementById('exitBtn') };
+        els.panel.style.display=show?'block':'none'; els.exit.style.display=show?'block':'none';
+        if(show){
+            document.getElementById('editIntroTitle').value=introData.title;
+            document.getElementById('editIntroSub').value=introData.sub;
+            document.getElementById('aboutEditor').value=aboutText;
+            renderAdminSearch();
+        }
+        renderUI();
+    }
+
+    function adminSearchFunc() {
+        const query = document.getElementById('adminSearch').value.toLowerCase();
+        const resDiv = document.getElementById('adminSearchResults');
+        resDiv.innerHTML = '';
+        if(query.length < 2) return;
+
+        const results = posts.filter(p => p.title.toLowerCase().includes(query));
+        results.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'admin-result-card';
+            div.innerHTML = `
+                <div class="admin-result-info">${p.title}</div>
+                <div>
+                    <button class="btn btn-primary btn-mini" onclick="loadPostForEdit(${p.id})">Edit</button>
+                    <button class="btn btn-danger btn-mini" onclick="requestSecureAction('delete', ${p.id})">Del</button>
+                </div>
+            `;
+            resDiv.appendChild(div);
+        });
+    }
+
+    function loadPostForEdit(id) {
+        const p = posts.find(x => x.id === id); if(!p) return;
+        document.getElementById('editPostId').value = p.id;
+        document.getElementById('postTitle').value = p.title;
+        document.getElementById('postL        .admin-result-info { font-size: 0.9rem; color: #cbd5e1; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<header id="mainHeader">
+    <div class="logo" id="siteLogo"><i class="fas fa-infinity"></i> Infinity Tool</div>
+    <button class="btn btn-exit" onclick="exitAdmin()" id="exitBtn" style="display:none;"> <i class="fas fa-sign-out-alt"></i> </button>
+</header>
+
+<div id="introSection">
+    <h1 id="introTitle"></h1>
+    <p id="introSub"></p>
+    <div class="search-container">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" id="searchInput" class="search-input" placeholder="Search..." onkeyup="filterPosts()">
+    </div>
+</div>
+
+<div class="nav-scroller" id="navContainer"></div>
+
+<div class="container">
+
+    <div id="adminPanel">
+        <div class="admin-header">
+            <div>
+                <h2 style="margin:0; font-size:1.5rem;">Dashboard</h2>
+                <div style="color:var(--text-muted); font-size:0.9rem;">Manage & Monitor</div>
+            </div>
+            <button class="btn btn-exit" onclick="exitAdmin()">Close</button>
+        </div>
+
+        <div class="admin-section">
+            <h4 class="section-title"><i class="fas fa-search"></i> Find & Edit Content</h4>
+            <input type="text" id="adminSearch" placeholder="Type to find a post..." onkeyup="adminSearchFunc()">
+            <div id="adminSearchResults" style="max-height: 200px; overflow-y: auto;"></div>
+        </div>
+
+        <div class="admin-section">
+            <h4 class="section-title"><i class="fas fa-plus-circle"></i> Add / Edit Content</h4>
+            <input type="hidden" id="editPostId">
+            <select id="postCatSelect"></select>
+            <input type="text" id="postTitle" placeholder="Site Name">
+            <input type="url" id="postLink" placeholder="Link URL (https://...)">
+            <input type="text" id="postImg" placeholder="Image Link (Optional)">
+            <textarea id="postDesc" rows="2" placeholder="Description"></textarea>
+            <button class="btn btn-primary" onclick="addPost()" id="publishBtn">Publish</button>
+            <button class="btn btn-outline" onclick="clearForm()" style="margin-top:10px;">Clear Form</button>
+        </div>
+
+        <div class="admin-section">
+            <h4 class="section-title" style="color:#38bdf8;"><i class="fas fa-sliders-h"></i> Settings</h4>
+            
+            <label style="display:block; margin-bottom:5px; font-size:0.9rem; color:#94a3b8;">Categories</label>
+            <div id="catList" style="display:flex; flex-wrap:wrap; margin-bottom:10px;"></div>
+            <div style="display:flex; gap:10px; margin-bottom:1.5rem;">
+                <input type="text" id="newCatName" placeholder="New Category Name" style="margin-bottom:0;">
+                <button class="btn btn-primary" style="width:auto; padding:0 1.5rem; margin-bottom:0;" onclick="addCategory()">Add</button>
+            </div>
+
             <label style="display:block; margin-bottom:5px; font-size:0.9rem; color:#94a3b8;">Header Text</label>
             <input type="text" id="editIntroTitle" placeholder="Main Title (e.g. Welcome)">
             <input type="text" id="editIntroSub" placeholder="Subtitle (e.g. Explore tools)" style="margin-top:10px;">
